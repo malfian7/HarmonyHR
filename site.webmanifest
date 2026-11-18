@@ -1,0 +1,16 @@
+{
+  "name": "Harmony HR",
+  "short_name": "Harmony HR",
+  "description": "Software HR & HRD berbasis cloud untuk absensi, payroll, reimbursement, dan administrasi HR.",
+  "lang": "id",
+  "start_url": "./",
+  "scope": "./",
+  "display": "browser",
+  "background_color": "#f4f8fb",
+  "theme_color": "#0b2540",
+  "icons": [
+    { "src": "assets/images/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/images/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/images/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

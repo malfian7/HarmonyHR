@@ -1,19 +1,22 @@
-/* Harmony HR — interaksi ringan (tanpa dependensi) */
+/* Harmony HR — interaksi (tanpa dependensi) */
 (function () {
   'use strict';
 
   var doc = document;
+  var root = doc.documentElement;
+  var animOn = root.classList.contains('anim');
   var header = doc.querySelector('.header');
   var toggle = doc.querySelector('.nav-toggle');
   var nav = doc.getElementById('nav');
+  var EASE = 'cubic-bezier(.22, 1, .36, 1)';
 
   /* Tahun otomatis di footer */
   var yr = doc.getElementById('year');
   if (yr) yr.textContent = new Date().getFullYear();
 
-  /* Header: bayangan saat scroll */
+  /* Header: garis bawah saat halaman di-scroll */
   function onScroll() { header.classList.toggle('is-scrolled', window.scrollY > 8); }
-  onScroll();
+  requestAnimationFrame(onScroll);
   window.addEventListener('scroll', onScroll, { passive: true });
 
   /* Menu mobile */
@@ -29,24 +32,115 @@
   });
   window.matchMedia('(min-width: 901px)').addEventListener('change', function (m) { if (m.matches) setMenu(false); });
 
-  /* Reveal saat scroll */
+  /* Muncul halus saat di-scroll */
   var items = doc.querySelectorAll('.reveal');
-  if ('IntersectionObserver' in window) {
+  if ('IntersectionObserver' in window && animOn) {
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (en) {
         if (en.isIntersecting) { en.target.classList.add('is-in'); io.unobserve(en.target); }
       });
-    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
     items.forEach(function (el) { io.observe(el); });
   } else {
     items.forEach(function (el) { el.classList.add('is-in'); });
   }
 
-  /* FAQ: buka satu per satu */
-  var faqs = doc.querySelectorAll('.faq-item');
+  /* ------------------------------------------------------------------
+     Slip gaji interaktif (ilustrasi)
+     Total = gaji pokok + tunjangan + lembur − potongan absen
+  ------------------------------------------------------------------ */
+  var slip = doc.getElementById('slip');
+  if (slip) {
+    var nf = new Intl.NumberFormat('id-ID');
+    var HARI_KERJA = 22, POKOK = 8000000, TUNJANGAN = 1500000, TARIF_LEMBUR = 50000, POTONGAN_HARI = 250000;
+    var limits = { hadir: [16, HARI_KERJA], lembur: [0, 20] };
+    var state = { hadir: 20, lembur: 6 };
+    var shown = POKOK + TUNJANGAN + state.lembur * TARIF_LEMBUR - (HARI_KERJA - state.hadir) * POTONGAN_HARI;
+    var tween = null;
+
+    var el = {
+      hadir: doc.getElementById('v-hadir'), lembur: doc.getElementById('v-lembur'),
+      lLembur: doc.getElementById('l-lembur'), aLembur: doc.getElementById('a-lembur'),
+      lPot: doc.getElementById('l-pot'), aPot: doc.getElementById('a-pot'),
+      total: doc.getElementById('v-total')
+    };
+
+    function render() {
+      var absen = HARI_KERJA - state.hadir;
+      var lembur = state.lembur * TARIF_LEMBUR, pot = absen * POTONGAN_HARI;
+      var total = POKOK + TUNJANGAN + lembur - pot;
+
+      el.hadir.textContent = state.hadir;
+      el.lembur.textContent = state.lembur;
+      el.lLembur.textContent = 'Lembur · ' + state.lembur + ' jam × ' + nf.format(TARIF_LEMBUR);
+      el.aLembur.textContent = nf.format(lembur);
+      el.lPot.textContent = 'Potongan absen · ' + absen + ' hari';
+      el.aPot.textContent = pot ? '− ' + nf.format(pot) : '0';
+
+      slip.querySelectorAll('.stepper button').forEach(function (b) {
+        var f = b.getAttribute('data-field'), step = parseInt(b.getAttribute('data-step'), 10);
+        b.disabled = (step < 0 && state[f] <= limits[f][0]) || (step > 0 && state[f] >= limits[f][1]);
+      });
+
+      if (tween) cancelAnimationFrame(tween);
+      if (!animOn) { el.total.textContent = nf.format(total); shown = total; return; }
+      var from = shown, t0 = null;
+      (function frame(t) {
+        if (t0 === null) t0 = t;
+        var k = Math.min(1, (t - t0) / 320), e = 1 - Math.pow(1 - k, 3);
+        shown = Math.round(from + (total - from) * e);
+        el.total.textContent = nf.format(shown);
+        if (k < 1) tween = requestAnimationFrame(frame);
+      })(performance.now());
+    }
+
+    slip.addEventListener('click', function (e) {
+      var b = e.target.closest('.stepper button');
+      if (!b || b.disabled) return;
+      var f = b.getAttribute('data-field');
+      state[f] = Math.max(limits[f][0], Math.min(limits[f][1], state[f] + parseInt(b.getAttribute('data-step'), 10)));
+      render();
+    });
+    render();
+  }
+
+  /* ------------------------------------------------------------------
+     FAQ: buka-tutup halus, satu per satu
+  ------------------------------------------------------------------ */
+  var faqs = Array.prototype.slice.call(doc.querySelectorAll('.qa'));
+
+  function setFaq(d, open) {
+    var ans = d.querySelector('.answer');
+    if (!animOn || !ans.animate) { d.open = open; return; }
+    if (d._anim) d._anim.cancel();
+    d._closing = false;
+    var pb = parseFloat(getComputedStyle(ans).paddingBottom) || 0, h;
+    ans.style.overflow = 'hidden';
+    if (open) {
+      d.open = true;
+      h = ans.offsetHeight;
+      d._anim = ans.animate(
+        { height: ['0px', h + 'px'], paddingBottom: ['0px', pb + 'px'], opacity: [0, 1] },
+        { duration: 320, easing: EASE }
+      );
+      d._anim.onfinish = d._anim.oncancel = function () { ans.style.overflow = ''; d._anim = null; };
+    } else {
+      d._closing = true;
+      h = ans.offsetHeight;
+      d._anim = ans.animate(
+        { height: [h + 'px', '0px'], paddingBottom: [pb + 'px', '0px'], opacity: [1, 0] },
+        { duration: 220, easing: EASE }
+      );
+      d._anim.onfinish = function () { d.open = false; d._closing = false; ans.style.overflow = ''; d._anim = null; };
+      d._anim.oncancel = function () { d._closing = false; ans.style.overflow = ''; };
+    }
+  }
   faqs.forEach(function (d) {
-    d.addEventListener('toggle', function () {
-      if (d.open) faqs.forEach(function (o) { if (o !== d) o.open = false; });
+    d.querySelector('summary').addEventListener('click', function (e) {
+      e.preventDefault();
+      var willOpen = !(d.open && !d._closing);
+      if (willOpen) faqs.forEach(function (o) { if (o !== d && o.open) setFaq(o, false); });
+      setFaq(d, willOpen);
     });
   });
 

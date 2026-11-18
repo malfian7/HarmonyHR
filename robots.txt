@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://malfian7.github.io/HarmonyHR-LandingPage/sitemap.xml
